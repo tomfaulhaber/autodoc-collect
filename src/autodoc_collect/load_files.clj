@@ -60,10 +60,13 @@
        (println  (str "failed (ex = " (.getMessage e) ")"))))))
 
 (defn load-namespaces [root source-path load-except-list]
-  (load-files
-   (map #(.getPath %)
-        (mapcat
-         #(find-clojure-sources-in-dir
-           (File. root %))
-         (split source-path ":")))
-   (map re-pattern (split load-except-list ":"))))
+  (let [load-except-list (if (empty? load-except-list)
+                           nil
+                           (map re-pattern (split load-except-list ":")))]
+    (load-files
+     (map #(.getPath %)
+          (mapcat
+           #(find-clojure-sources-in-dir
+             (File. root %))
+           (split source-path ":")))
+     load-except-list)))
