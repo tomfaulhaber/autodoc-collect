@@ -93,7 +93,7 @@ may not be foolproof."
       (find-var (symbol ns sym)))))
 
 (defn protocol-class?
-  "Return true if the class erpresents a protocol. We resolve this by finding the
+  "Return true if the class represents a protocol. We resolve this by finding the
 associated var"
   [cls]
   (protocol? (class-to-var cls)))
@@ -103,7 +103,7 @@ associated var"
 return it as a string."
   [v]
   (cond (:macro (meta v)) "macro"
-        (= (:tag (meta v)) clojure.lang.MultiFn) "multimethod"
+        (instance? clojure.lang.MultiFn @v) "multimethod"
         (:arglists (meta v)) "function"
         (protocol? v) "protocol"
         :else "var"))

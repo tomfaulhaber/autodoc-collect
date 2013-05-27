@@ -1,6 +1,7 @@
 (ns autodoc-collect.load-files
   (:import [java.util.jar JarFile]
-           [java.io File]))
+           [java.io File])
+  (:require [clojure.set :as set]))
 
 ;;; Load all the files from the source. This is a little hacked up 
 ;;; because we can't just grab them out of the jar, but rather need 
@@ -50,14 +51,53 @@
   [filename]
   (.substring filename 0 (- (.length filename) 4)))
 
+;;; The namespace-lists here have the form {ns-name {var-name [var meta-var], ...}, ...}
+;;; where ns-name and var-name are symbols, var is the actual var for the symbol and
+;;; meta-var is the metadata seen for the var when it was first discovered.
+;;; We filter it to only the defmulti vars
+
+(defn get-multifns
+  "Get the information for currently defined multimethods by scanning the namespaces"
+  []
+  (into {}
+        (for [ns (all-ns)]
+          [(ns-name ns)
+           (into {} (for [[sym-name sym-var] (ns-interns ns)
+                          :when (instance? clojure.lang.MultiFn
+                                           @sym-var)]
+                      [sym-name [sym-var (meta sym-var)]]))])))
+
+
+(defn revert-multimethod-meta
+  "Make sure that the metadata on multifunctions doesn't change after the first time we see it"
+  [old-namespace-list namespace-list]
+  (dorun
+     (doseq [[ns-name ns-syms] old-namespace-list]
+       (dorun
+        (doseq [[sym-name [sym-var sym-meta]] ns-syms]
+          ;; We could check to see if it changed, but why bother? The old value is always right.
+          (alter-meta! sym-var (constantly sym-meta)))))))
+
+(defn preserve-multifn-meta
+  "This function works around the fact that defmulti drops metadata if its reloaded"
+  [old-namespace-list]
+  (let [namespace-list (get-multifns)]
+    (revert-multimethod-meta old-namespace-list namespace-list)
+    (let [new-namespaces (set/difference (set (keys namespace-list))
+                                         (set (keys old-namespace-list)))]
+      (merge old-namespace-list (select-keys namespace-list new-namespaces)))))
+
 (defn load-files [filelist load-except-list]
-  (doseq [filename (filter #(not-in % load-except-list) filelist)]
-    (print (str filename ": "))
-    (try 
-     (load-file filename)
-     (println "done.")
-     (catch Exception e 
-       (println  (str "failed (ex = " (.getMessage e) ")"))))))
+  (loop [files (filter #(not-in % load-except-list) filelist)
+         multi-info nil]
+    (when-let [filename (first files)]
+      (print (str filename ": "))
+      (try
+        (load-file filename)
+        (println "done.")
+        (catch Exception e
+          (println  (str "failed (ex = " (.getMessage e) ")"))))
+      (recur (next files) (preserve-multifn-meta multi-info)))))
 
 (defn load-namespaces [root source-path load-except-list]
   (let [load-except-list (if (empty? load-except-list)
