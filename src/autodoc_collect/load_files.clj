@@ -63,8 +63,9 @@
         (for [ns (all-ns)]
           [(ns-name ns)
            (into {} (for [[sym-name sym-var] (ns-interns ns)
-                          :when (instance? clojure.lang.MultiFn
-                                           @sym-var)]
+                          :when (and
+                                 (.isBound sym-var) ; bound was added in Clojure 1.2, so we don't use it
+                                 (instance? clojure.lang.MultiFn @sym-var))]
                       [sym-name [sym-var (meta sym-var)]]))])))
 
 
