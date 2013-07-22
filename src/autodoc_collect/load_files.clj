@@ -104,6 +104,8 @@
   (let [load-except-list (if (empty? load-except-list)
                            nil
                            (map re-pattern (split load-except-list ":")))]
+    ;; The following line lets us load things like JFreeChart without having an X display
+    (System/setProperty "java.awt.headless" "true")
     (load-files
      (map #(.getPath %)
           (mapcat
