@@ -80,7 +80,10 @@ may not be foolproof."
   (and v
        (.isBound v)
        (map? @v)
-       ((my-every-pred :on-interface :on :sigs :var :method-map :method-builders) @v)))
+       (try
+         ((my-every-pred :on-interface :on :sigs :var :method-map :method-builders) @v)
+         (catch UnsupportedOperationException e
+           false))))
 
 (defn class-to-var
   "Take a class object that points to a var and return the Var object"
