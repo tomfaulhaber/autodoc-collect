@@ -7,7 +7,7 @@
 ;; Assumes that all the relevant namespaces have already been loaded
 
 ;; namespace: { :full-name :short-name :doc :author :members :subspaces :see-also}
-;; vars: {:name :doc :arglists :var-type :file :line :added :deprecated :dynamic}
+;; vars: {:name :doc :arglists :var-type :file :line :added :deprecated :dynamic :forms}
 
 ;; collect-info is special in that it is run as a separate process to run in
 ;; environment of the code being documented. What's particularly important is
@@ -108,10 +108,13 @@ return it as a string."
   (cond (:macro (meta v)) "macro"
         (instance? clojure.lang.MultiFn @v) "multimethod"
         (:arglists (meta v)) "function"
+        (:forms (meta v)) "type alias"
         (protocol? v) "protocol"
         :else "var"))
 
-(defn vars-for-ns [ns]
+(defn vars-for-ns
+  "Returns a seq of vars in ns that should be documented"
+  [ns]
   (for [v (sort-by (comp :name meta) (vals (ns-interns ns)))
         :when (and (or (:wiki-doc (meta v)) (:doc (meta v)))
                    (not (protocol? v))
@@ -121,18 +124,20 @@ return it as a string."
     v))
 
 (defn var-info
+  "Get the metadata info for a single var v"
   [v]
   (merge (select-keys (meta v) [:arglists :file :line
-                                :added :deprecated :dynamic])
+                                :added :deprecated :dynamic
+                                :forms])
          {:name (name (:name (meta v)))
           :doc (remove-leading-whitespace (:doc (meta v))),
           :var-type (var-type v)}))
 
-(defn vars-info [ns]
+(defn vars-info
+  "Get a seq of var-info for all the vars in a namespace that should be documented."
+  [ns]
   (for [v (vars-for-ns ns)] 
     (var-info v)))
-
-
 
 (let [primitive-map {Boolean/TYPE 'booleans,
                      Character/TYPE 'characters,
@@ -145,7 +150,7 @@ return it as a string."
                      Void/TYPE 'voids}]
   (defn expand-array-types
     "Expand array types to create a symbol like array-of-bytes so that it can parse
-   (since [B doesn't parse as a symbol). Non-arrays are retuened as is."
+   (since [B doesn't parse as a symbol). Non-arrays are returned as is."
     [#^Class cls]
     (cond
      (nil? cls) nil
@@ -270,7 +275,9 @@ have the same prefix followed by a . and then more components"
   (let [pat (re-pattern (str (.replaceAll (name (ns-name ns)) "\\." "\\.") "\\..*"))]
     (sort-by
      #(name (ns-name %))
-     (filter #(and (not (:skip-wiki (meta %))) (re-matches pat (name (ns-name %)))) (all-ns)))))
+     (filter #(and (not (:skip-wiki (meta %)))
+                   (re-matches pat (name (ns-name %))))
+             (all-ns)))))
 
 (defn ns-short-name [ns trim-prefix]
   (trim-ns-name (name (ns-name ns)) trim-prefix))
