@@ -2,7 +2,7 @@
   (:use [autodoc-collect.load-files :only (load-namespaces)]))
 
 ;; Build a single structure representing all the info we care about concerning
-;; namespaces and their members 
+;; namespaces and their members
 ;;
 ;; Assumes that all the relevant namespaces have already been loaded
 
@@ -14,7 +14,7 @@
 ;; that it needs to run in various versions of Clojure and depend as little
 ;; as possible on the differences.
 
-;; Because of this, it's important that it doesn't use any AOT'ed code. 
+;; Because of this, it's important that it doesn't use any AOT'ed code.
 
 
 (def post-1-2? (let [{:keys [major minor]} *clojure-version*]
@@ -50,15 +50,15 @@
   [ns]
   (.replace (name (ns-name ns)) "_" "-"))
 
-(defn remove-leading-whitespace 
+(defn remove-leading-whitespace
   "Find out what the minimum leading whitespace is for a doc block and remove it.
-We do this because lots of people indent their doc blocks to the indentation of the 
+We do this because lots of people indent their doc blocks to the indentation of the
 string, which looks nasty when you display it."
   [s]
   (when s
-    (let [lines (.split s "\\n") 
-          prefix-lens (map #(count (re-find #"^ *" %)) 
-                           (filter #(not (= 0 (count %))) 
+    (let [lines (.split s "\\n")
+          prefix-lens (map #(count (re-find #"^ *" %))
+                           (filter #(not (= 0 (count %)))
                                    (next lines)))
           min-prefix (when (seq prefix-lens) (apply min prefix-lens))
           regex (when min-prefix (apply str "^" (repeat min-prefix " ")))]
@@ -101,7 +101,7 @@ associated var"
   [cls]
   (protocol? (class-to-var cls)))
 
-(defn var-type 
+(defn var-type
   "Determing the type (var, function, macro, protocol) of a var from the metadata and
 return it as a string."
   [v]
@@ -123,6 +123,28 @@ return it as a string."
                    (not (:private (meta v))))]
     v))
 
+(def special-form-anchor-set
+  #{'. 'def 'do 'fn 'if 'let 'loop 'monitor-enter 'monitor-exit 'new
+    'quote 'recur 'set! 'throw 'try 'var})
+
+(def syntax-symbol-anchor-map
+  {'& 'fn 'catch 'try 'finally 'try})
+
+(defn specials
+  "Adds the special form and syntax info to clojure.core docs (just returns
+nil everywhere else)."
+  [ns]
+  (when (= (ns-name ns) 'clojure.core)
+    (concat
+     (for [frm special-form-anchor-set]
+       {:name (str frm)
+        :var-type "special form"
+        :doc (str "Please see http://clojure.org/special_forms#" frm)})
+     (for [[syn frm] syntax-symbol-anchor-map]
+       {:name (str syn)
+        :var-type "special syntax"
+        :doc (str "Please see http://clojure.org/special_forms#" frm)}))))
+
 (defn var-info
   "Get the metadata info for a single var v"
   [v]
@@ -136,8 +158,12 @@ return it as a string."
 (defn vars-info
   "Get a seq of var-info for all the vars in a namespace that should be documented."
   [ns]
-  (for [v (vars-for-ns ns)] 
-    (var-info v)))
+  (sort-by
+   :name
+   (concat
+    (for [v (vars-for-ns ns)]
+      (var-info v))
+    (specials ns))))
 
 (let [primitive-map {Boolean/TYPE 'booleans,
                      Character/TYPE 'characters,
@@ -239,7 +265,7 @@ return it as a string."
 
 (defn relevant-namespaces [namespaces-to-document]
   (filter #(not (:skip-wiki (meta %)))
-          (map #(find-ns (symbol %)) 
+          (map #(find-ns (symbol %))
                (filter #(some (fn [n] (or (= % n) (.startsWith % (str n "."))))
                               (seq (.split namespaces-to-document ":")))
                        (sort (map #(name (ns-name %)) (all-ns)))))))
@@ -252,9 +278,9 @@ return it as a string."
 (defn base-namespace
   "A nasty function that finds the shortest prefix namespace of this one"
   [ns relevant]
-  (first 
-   (drop-while 
-    (comp not identity) 
+  (first
+   (drop-while
+    (comp not identity)
     (map #(let [ns-part (find-ns (symbol %))]
             (if (and (not (:skip-wiki (meta ns-part)))
                      (relevant ns-part))
@@ -268,8 +294,8 @@ return it as a string."
         relevant-set (set relevant)]
     (filter #(= % (base-namespace % relevant-set)) relevant)))
 
-(defn sub-namespaces 
-  "Find the list of namespaces that are sub-namespaces of this one. That is they 
+(defn sub-namespaces
+  "Find the list of namespaces that are sub-namespaces of this one. That is they
 have the same prefix followed by a . and then more components"
   [ns]
   (let [pat (re-pattern (str (.replaceAll (name (ns-name ns)) "\\." "\\.") "\\..*"))]
@@ -291,7 +317,7 @@ have the same prefix followed by a . and then more components"
   (sort-by :short-name (map add-vars (map #(build-ns-entry % trim-prefix) nss))))
 
 (defn add-subspaces [info trim-prefix]
-     (assoc info :subspaces 
+     (assoc info :subspaces
             (filter #(or (:doc %) (seq (:members %))
                          (seq (:types %)) (seq (:protocols %)))
                     (build-ns-list (sub-namespaces (:ns info)) trim-prefix))))
@@ -301,7 +327,7 @@ have the same prefix followed by a . and then more components"
     :base-ns (:short-name ns)
     :subspaces (map #(assoc % :base-ns (:short-name ns)) (:subspaces ns))))
 
-(defn clean-ns-info 
+(defn clean-ns-info
   "Remove the back pointers to the namespace from the ns-info"
   [ns-info]
   (map (fn [ns] (assoc (dissoc ns :ns)
@@ -314,13 +340,13 @@ have the same prefix followed by a . and then more components"
         (map #(add-subspaces % trim-prefix)
              (build-ns-list (base-relevant-namespaces namespaces-to-document) trim-prefix)))))
 
-(defn writer 
-  "A version of duck-streams/writer that only handles file strings. Moved here for 
+(defn writer
+  "A version of duck-streams/writer that only handles file strings. Moved here for
 versioning reasons"
   [s]
   (java.io.PrintWriter.
    (java.io.BufferedWriter.
-    (java.io.OutputStreamWriter. 
+    (java.io.OutputStreamWriter.
      (java.io.FileOutputStream. (java.io.File. s) false)
      "UTF-8"))))
 
