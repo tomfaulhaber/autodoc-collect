@@ -105,7 +105,8 @@ associated var"
   "Determing the type (var, function, macro, protocol) of a var from the metadata and
 return it as a string."
   [v]
-  (cond (:macro (meta v)) "macro"
+  (cond (:special-form (meta v)) "special form"
+        (:macro (meta v)) "macro"
         (instance? clojure.lang.MultiFn @v) "multimethod"
         (:arglists (meta v)) "function"
         (:forms (meta v)) "type alias"
@@ -123,12 +124,64 @@ return it as a string."
                    (not (:private (meta v))))]
     v))
 
-(def special-form-anchor-set
-  #{'. 'def 'do 'fn 'if 'let 'loop 'monitor-enter 'monitor-exit 'new
-    'quote 'recur 'set! 'throw 'try 'var})
+;; This is copied from clojure.repl and provides the documentation
+;; for the "undocumented" special forms.
+(def special-doc-map
+  '{. {:url "java_interop#dot"
+       :forms [(.instanceMember instance args*)
+               (.instanceMember Classname args*)
+               (Classname/staticMethod args*)
+               Classname/staticField]
+       :doc "The instance member form works for both fields and methods.
+They all expand into calls to the dot operator at macroexpansion time."}
+    def {:forms [(def symbol doc-string? init?)]
+         :doc "Creates and interns a global var with the name
+of symbol in the current namespace (*ns*) or locates such a var if
+it already exists.  If init is supplied, it is evaluated, and the
+root binding of the var is set to the resulting value.  If init is
+not supplied, the root binding of the var is unaffected."}
+    do {:forms [(do exprs*)]
+        :doc "Evaluates the expressions in order and returns the value of
+the last. If no expressions are supplied, returns nil."}
+    if {:forms [(if test then else?)]
+        :doc "Evaluates test. If not the singular values nil or false,
+evaluates and yields then, otherwise, evaluates and yields else. If
+else is not supplied it defaults to nil."}
+    monitor-enter {:forms [(monitor-enter x)]
+                   :doc "Synchronization primitive that should be avoided
+in user code. Use the 'locking' macro."}
+    monitor-exit {:forms [(monitor-exit x)]
+                  :doc "Synchronization primitive that should be avoided
+in user code. Use the 'locking' macro."}
+    new {:forms [(Classname. args*) (new Classname args*)]
+         :url "java_interop#new"
+         :doc "The args, if any, are evaluated from left to right, and
+passed to the constructor of the class named by Classname. The
+constructed object is returned."}
+    quote {:forms [(quote form)]
+           :doc "Yields the unevaluated form."}
+    recur {:forms [(recur exprs*)]
+           :doc "Evaluates the exprs in order, then, in parallel, rebinds
+the bindings of the recursion point to the values of the exprs.
+Execution then jumps back to the recursion point, a loop or fn method."}
+    set! {:forms[(set! var-symbol expr)
+                 (set! (. instance-expr instanceFieldName-symbol) expr)
+                 (set! (. Classname-symbol staticFieldName-symbol) expr)]
+          :url "vars#set"
+          :doc "Used to set thread-local-bound vars, Java object instance
+fields, and Java class static fields."}
+    throw {:forms [(throw expr)]
+           :doc "The expr is evaluated and thrown, therefore it should
+yield an instance of some derivee of Throwable."}
+    try {:forms [(try expr* catch-clause* finally-clause?)]
+         :doc "catch-clause => (catch classname name expr*)
+finally-clause => (finally expr*)
 
-(def syntax-symbol-anchor-map
-  {'& 'fn 'catch 'try 'finally 'try})
+Catches and handles Java exceptions."}
+    var {:forms [(var symbol)]
+         :doc "The symbol must resolve to a var, and the Var object
+itself (not its value) is returned. The reader macro #'x
+expands to (var x)."}})
 
 (defn specials
   "Adds the special form and syntax info to clojure.core docs (just returns
@@ -136,14 +189,24 @@ nil everywhere else)."
   [ns]
   (when (= (ns-name ns) 'clojure.core)
     (concat
-     (for [frm special-form-anchor-set]
-       {:name (str frm)
+     (for [[special-name special-meta] special-doc-map]
+       {:name (str special-name)
         :var-type "special form"
-        :doc (str "Please see http://clojure.org/special_forms#" frm)})
-     (for [[syn frm] syntax-symbol-anchor-map]
-       {:name (str syn)
+        :doc (str (:doc special-meta)
+                  (if (contains? special-meta :url)
+                    (when-let [url (:url special-meta)]
+                      (str "\n\nPlease see http://clojure.org/" url))
+                    (str "\n\nPlease see http://clojure.org/special_forms#"
+                         special-name)))
+        :forms (:forms special-meta)
+        :added "1.0"})
+     (for [[special-syntax special-name] '{& fn catch try finally try}]
+       {:name (str special-syntax)
         :var-type "special syntax"
-        :doc (str "Please see http://clojure.org/special_forms#" frm)}))))
+        :doc (str "Syntax for use with " special-name
+                  ".\n\nPlease see http://clojure.org/special_forms#"
+                  special-name)
+        :added "1.0"}))))
 
 (defn var-info
   "Get the metadata info for a single var v"
