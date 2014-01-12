@@ -10,7 +10,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; NOTE: This module was adapted into autodoc from clojure.reflect
-;;; Thanks to Stuart Hollaway, the original author.
+;;; Thanks to Stuart Holloway, the original author.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (in-ns 'autodoc-collect.reflect)
@@ -19,16 +19,31 @@
          '[java.lang.reflect Modifier]
          java.io.InputStream)
 
+;;; hacking for life with multiple versions
+(defmacro if-ver-le [ver & forms]
+  (let [[major minor] (map #(Integer/valueOf %) (.split ver "\\."))]
+    (when (or (< (:major *clojure-version*) major)
+              (and (= (:major *clojure-version*) major)
+                   (<= (:minor *clojure-version*) minor)))
+      `(do ~@forms))))
+
+(defmacro if-ver-ge [ver & forms]
+  (let [[major minor] (map #(Integer/valueOf %) (.split ver "\\."))]
+    (when (or (> (:major *clojure-version*) major)
+              (and (= (:major *clojure-version*) major)
+                   (>= (:minor *clojure-version*)  minor)))
+      `(do ~@forms))))
+
 (extend-protocol TypeReference
   clojure.lang.Symbol
   (typename [s] (.replace (str s) "<>" "[]"))
-  
+
   Class
   ;; neither .getName not .getSimpleName returns the right thing, so best to delegate to Type
   (typename
    [c]
    (typename (Type/getType c)))
-  
+
   Type
   (typename
    [t]
@@ -84,7 +99,7 @@ the kinds of objects to which they can apply."}
          [:final 0x0010  :class :field :method]
          ;; :super is ancient history and is unfindable (?) by
          ;; reflection. skip it
-         #_[:super 0x0020  :class]        
+         #_[:super 0x0020  :class]
          [:synchronized 0x0020  :method]
          [:volatile 0x0040  :field]
          [:bridge 0x0040  :method]
@@ -193,10 +208,114 @@ the kinds of objects to which they can apply."}
 (extend-protocol ClassResolver
   clojure.lang.Fn
   (resolve-class [this typeref] (this typeref))
-  
+
   ClassLoader
   (resolve-class [this typeref]
                  (.getResourceAsStream this (resource-name typeref))))
+
+;; The 1.5 and earlier version
+(if-ver-le
+ "1.5"
+ (defn make-visitor [class-symbol result]
+   (reify
+     ClassVisitor
+     (visit [_ version access name signature superName interfaces]
+       (let [flags (parse-flags access :class)
+             ;; ignore java.lang.Object on interfaces to match reflection
+             superName (if (and (flags :interface)
+                                (= superName "java/lang/Object"))
+                         nil
+                         superName)
+             bases (->> (cons superName interfaces)
+                        (remove nil?)
+                        (map internal-name->class-symbol)
+                        (map symbol)
+                        (set)
+                        (not-empty))]
+         (swap! result merge {:bases bases
+                              :flags flags})))
+     (visitSource [_ name debug])
+     (visitInnerClass [_ name outerName innerName access])
+     (visitField [_ access name desc signature value]
+       (swap! result update-in [:members] (fnil conj #{})
+              (Field. (symbol name)
+                      (field-descriptor->class-symbol desc)
+                      class-symbol
+                      (parse-flags access :field)))
+       nil)
+     (visitMethod [_ access name desc signature exceptions]
+       (when-not (= name "<clinit>")
+         (let [constructor? (= name "<init>")]
+           (swap! result update-in [:members] (fnil conj #{})
+                  (let [{:keys [parameter-types return-type]} (parse-method-descriptor desc)
+                        flags (parse-flags access :method)]
+                    (if constructor?
+                      (Constructor. class-symbol
+                                    class-symbol
+                                    parameter-types
+                                    (vec (map internal-name->class-symbol exceptions))
+                                    flags)
+                      (Method. (symbol name)
+                               return-type
+                               class-symbol
+                               parameter-types
+                               (vec (map internal-name->class-symbol exceptions))
+                               flags))))))
+       nil)
+     (visitEnd [_]))))
+
+;; The 1.6 and later version
+(if-ver-ge
+ "1.6"
+ (def ASM4 (bit-shift-left 4 16))
+
+ (defn make-visitor [class-symbol result]
+   (proxy [ClassVisitor] [ASM4]
+     (visit [version access name signature superName interfaces]
+       (let [flags (parse-flags access :class)
+             ;; ignore java.lang.Object on interfaces to match reflection
+             superName (if (and (flags :interface)
+                                (= superName "java/lang/Object"))
+                         nil
+                         superName)
+             bases (->> (cons superName interfaces)
+                        (remove nil?)
+                        (map internal-name->class-symbol)
+                        (map symbol)
+                        (set)
+                        (not-empty))]
+         (swap! result merge {:bases bases
+                              :flags flags})))
+     (visitAnnotation [desc visible])
+     (visitSource [name debug])
+     (visitInnerClass [name outerName innerName access])
+     (visitField [access name desc signature value]
+       (swap! result update-in [:members] (fnil conj #{})
+              (Field. (symbol name)
+                      (field-descriptor->class-symbol desc)
+                      class-symbol
+                      (parse-flags access :field)))
+       nil)
+     (visitMethod [access name desc signature exceptions]
+       (when-not (= name "<clinit>")
+         (let [constructor? (= name "<init>")]
+           (swap! result update-in [:members] (fnil conj #{})
+                  (let [{:keys [parameter-types return-type]} (parse-method-descriptor desc)
+                        flags (parse-flags access :method)]
+                    (if constructor?
+                      (Constructor. class-symbol
+                                    class-symbol
+                                    parameter-types
+                                    (vec (map internal-name->class-symbol exceptions))
+                                    flags)
+                      (Method. (symbol name)
+                               return-type
+                               class-symbol
+                               parameter-types
+                               (vec (map internal-name->class-symbol exceptions))
+                               flags))))))
+       nil)
+     (visitEnd []))))
 
 (deftype AsmReflector [class-resolver]
   Reflector
@@ -205,54 +324,5 @@ the kinds of objects to which they can apply."}
       (let [class-symbol (typesym typeref)
             r (ClassReader. is)
             result (atom {:bases #{} :flags #{} :members #{}})]
-        (.accept
-         r
-         (reify
-          ClassVisitor
-          (visit [_ version access name signature superName interfaces]
-                 (let [flags (parse-flags access :class)
-                       ;; ignore java.lang.Object on interfaces to match reflection
-                       superName (if (and (flags :interface)
-                                          (= superName "java/lang/Object"))
-                                   nil
-                                   superName)
-                       bases (->> (cons superName interfaces)
-                                  (remove nil?)
-                                  (map internal-name->class-symbol)
-                                  (map symbol)
-                                  (set)
-                                  (not-empty))]
-                   (swap! result merge {:bases bases 
-                                        :flags flags})))
-          (visitSource [_ name debug])
-          (visitInnerClass [_ name outerName innerName access])
-          (visitField [_ access name desc signature value]
-                      (swap! result update-in [:members] (fnil conj #{})
-                             (Field. (symbol name)
-                                     (field-descriptor->class-symbol desc)
-                                     class-symbol
-                                     (parse-flags access :field)))
-                      nil)
-          (visitMethod [_ access name desc signature exceptions]
-                       (when-not (= name "<clinit>")
-                         (let [constructor? (= name "<init>")]
-                           (swap! result update-in [:members] (fnil conj #{})
-                                  (let [{:keys [parameter-types return-type]} (parse-method-descriptor desc)
-                                        flags (parse-flags access :method)]
-                                    (if constructor?
-                                      (Constructor. class-symbol
-                                                    class-symbol
-                                                    parameter-types
-                                                    (vec (map internal-name->class-symbol exceptions))
-                                                    flags)
-                                      (Method. (symbol name)
-                                               return-type
-                                               class-symbol
-                                               parameter-types
-                                               (vec (map internal-name->class-symbol exceptions))
-                                               flags))))))
-                       nil)
-          (visitEnd [_])
-          ) 0)
+        (.accept r (make-visitor class-symbol result) 0)
         @result))))
-
