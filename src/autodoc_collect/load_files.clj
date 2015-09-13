@@ -3,8 +3,8 @@
            [java.io File])
   (:require [clojure.set :as set]))
 
-;;; Load all the files from the source. This is a little hacked up 
-;;; because we can't just grab them out of the jar, but rather need 
+;;; Load all the files from the source. This is a little hacked up
+;;; because we can't just grab them out of the jar, but rather need
 ;;; to load the files because of bug in namespace metadata
 
 ;;; Because clojure.string/split didn't always exist (re is a string here)
@@ -28,7 +28,7 @@
   (sort-by #(.getAbsolutePath %)
            (filter clojure-source-file? (file-seq dir))))
 
-(defn not-in [str regex-seq] 
+(defn not-in [str regex-seq]
   (loop [regex-seq regex-seq]
     (cond
       (nil? (seq regex-seq)) true
