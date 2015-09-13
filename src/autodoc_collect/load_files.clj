@@ -17,7 +17,8 @@
   "Returns true if file is a normal file with a .clj extension."
   [#^File file]
   (and (.isFile file)
-       (.endsWith (.getName file) ".clj")))
+       (or (.endsWith (.getName file) ".clj")
+           (.endsWith (.getName file) ".cljc"))))
 
 (defn find-clojure-sources-in-dir
   "Searches recursively under dir for Clojure source files (.clj).
@@ -36,20 +37,9 @@
 
 (defn file-to-ns [file]
   (find-ns (symbol (-> file
-                       (.replaceFirst ".clj$" "")
+                       (.replaceFirst ".cljc?$" "")
                        (.replaceAll "/" ".")
                        (.replaceAll "_" "-")))))
-
-(defn ns-to-file [ns]
-  (str (-> (name ns)
-           (.replaceAll "\\." "/")
-           (.replaceAll "-" "_"))
-       ".clj"))
-
-(defn basename
-  "Strip the .clj extension so we can pass the filename to load"
-  [filename]
-  (.substring filename 0 (- (.length filename) 4)))
 
 ;;; The namespace-lists here have the form {ns-name {var-name [var meta-var], ...}, ...}
 ;;; where ns-name and var-name are symbols, var is the actual var for the symbol and
