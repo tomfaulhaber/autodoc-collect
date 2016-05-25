@@ -23,6 +23,9 @@
 (def post-1-3? (let [{:keys [major minor]} *clojure-version*]
                  (or (>= major 2) (and (= major 1) (>= minor 3)))))
 
+(def post-1-8? (let [{:keys [major minor]} *clojure-version*]
+                 (or (>= major 2) (and (= major 1) (>= minor 8)))))
+
 (defmacro defdynamic [var init]
   `(do
      (def  ~var ~init)
@@ -39,6 +42,12 @@
     (load "reflect")
     (refer 'autodoc-collect.reflect :only '[reflect]))
   (defn reflect [obj & options]))
+
+(if post-1-8?
+  (require '[clojure.spec :refer [fn-specs describe]])
+  (do
+    (defn fn-specs [v])
+    (defn describe [spec])))
 
 (defn ns-to-class-name
   "Convert the namespece name into a class root name"
@@ -112,6 +121,13 @@ return it as a string."
         (:forms (meta v)) "type alias"
         (protocol? v) "protocol"
         :else "var"))
+
+(defn var-specs
+  "Get {:args ..., :ret ..., :fn } spec for v or nil if none"
+  [v]
+  (let [s (fn-specs v)]
+    (when s
+      (reduce (fn [m [k v]] (assoc m k (describe v))) {} s))))
 
 (defn vars-for-ns
   "Returns a seq of vars in ns that should be documented"
@@ -216,7 +232,8 @@ nil everywhere else)."
                                 :forms])
          {:name (name (:name (meta v)))
           :doc (remove-leading-whitespace (:doc (meta v))),
-          :var-type (var-type v)}))
+          :var-type (var-type v)
+          :specs (var-specs v)}))
 
 (defn vars-info
   "Get a seq of var-info for all the vars in a namespace that should be documented."
