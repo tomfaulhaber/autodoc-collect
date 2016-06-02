@@ -6,7 +6,7 @@
 ;;
 ;; Assumes that all the relevant namespaces have already been loaded
 
-;; namespace: { :full-name :short-name :doc :author :members :subspaces :see-also}
+;; namespace: { :full-name :short-name :doc :author :members :specs :subspaces :see-also}
 ;; vars: {:name :doc :arglists :var-type :file :line :added :deprecated :dynamic :forms}
 
 ;; collect-info is special in that it is run as a separate process to run in
@@ -44,10 +44,11 @@
   (defn reflect [obj & options]))
 
 (if post-1-8?
-  (require '[clojure.spec :refer [fn-specs describe]])
+  (require '[clojure.spec :refer [fn-specs describe registry]])
   (do
     (defn fn-specs [v])
-    (defn describe [spec])))
+    (defn describe [spec])
+    (defn registry [])))
 
 (defn ns-to-class-name
   "Convert the namespece name into a class root name"
@@ -344,10 +345,20 @@ nil everywhere else)."
        ;; Get the fields from the constructor function so they're in the right order
        :fields (first (:arglists (meta (get (ns-interns ns) (symbol (str "->" type-name))))))})))
 
+(defn specs-info
+  "Create a map of all keyword specs in this namespace"
+  [ns]
+  (let [ns-str (str ns)]
+    (into {}
+          (for [[k v] (registry)
+                :when (and (keyword? k) (= ns-str (namespace k)))]
+            [k (describe v)]))))
+
 (defn add-vars [ns-info]
   (merge ns-info {:members (vars-info (:ns ns-info))
                   :protocols (protos-info (:ns ns-info))
-                  :types (types-info (:ns ns-info))}))
+                  :types (types-info (:ns ns-info))
+                  :specs (specs-info (:ns ns-info))}))
 
 (defn relevant-namespaces [namespaces-to-document]
   (filter #(not (:skip-wiki (meta %)))
