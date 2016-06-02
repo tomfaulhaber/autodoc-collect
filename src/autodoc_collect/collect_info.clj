@@ -122,12 +122,18 @@ return it as a string."
         (protocol? v) "protocol"
         :else "var"))
 
+(defn has-vals
+  "If any of the vals in m are non-nil, return m, else nil"
+  [m]
+  (if (seq (disj (set (vals m)) nil))
+    m
+    nil))
+
 (defn var-specs
   "Get {:args ..., :ret ..., :fn } spec for v or nil if none"
   [v]
-  (let [s (fn-specs v)]
-    (when s
-      (reduce (fn [m [k v]] (assoc m k (describe v))) {} s))))
+  (when-let [s (has-vals (fn-specs v))]
+    (reduce (fn [m [k v]] (assoc m k (describe v))) {} s)))
 
 (defn vars-for-ns
   "Returns a seq of vars in ns that should be documented"
