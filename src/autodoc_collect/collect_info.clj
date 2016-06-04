@@ -24,7 +24,7 @@
                  (or (>= major 2) (and (= major 1) (>= minor 3)))))
 
 (def post-1-8? (let [{:keys [major minor]} *clojure-version*]
-                 (or (>= major 2) (and (= major 1) (>= minor 8)))))
+                 (or (>= major 2) (and (= major 1) (> minor 8)))))
 
 (defmacro defdynamic [var init]
   `(do
@@ -346,13 +346,14 @@ nil everywhere else)."
        :fields (first (:arglists (meta (get (ns-interns ns) (symbol (str "->" type-name))))))})))
 
 (defn specs-info
-  "Create a map of all keyword specs in this namespace"
+  "Create a vector of all keyword specs, [kw spec], in this namespace"
   [ns]
   (let [ns-str (str ns)]
-    (into {}
-          (for [[k v] (registry)
-                :when (and (keyword? k) (= ns-str (namespace k)))]
-            [k (describe v)]))))
+    (sort-by
+     (fn [[k _]] (name k))
+     (for [[k v] (registry)
+           :when (and (keyword? k) (= ns-str (namespace k)))]
+       [k (describe v)]))))
 
 (defn add-vars [ns-info]
   (merge ns-info {:members (vars-info (:ns ns-info))
