@@ -3,4 +3,5 @@
   :url "http://github.com/tomfaulhaber"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :deploy-repositories [["releases" :clojars]]
   :dependencies [])
