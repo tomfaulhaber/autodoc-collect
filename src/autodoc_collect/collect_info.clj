@@ -44,9 +44,9 @@
   (defn reflect [obj & options]))
 
 (if post-1-8?
-  (require '[clojure.spec :refer [fn-specs describe registry]])
+  (require '[clojure.spec :refer [get-spec describe registry]])
   (do
-    (defn fn-specs [v])
+    (defn get-spec [v])
     (defn describe [spec])
     (defn registry [])))
 
@@ -133,7 +133,7 @@ return it as a string."
 (defn var-specs
   "Get {:args ..., :ret ..., :fn } spec for v or nil if none"
   [v]
-  (when-let [s (has-vals (fn-specs v))]
+  (when-let [s (has-vals (get-spec v))]
     (reduce (fn [m [k v]] (assoc m k (describe v))) {} s)))
 
 (defn vars-for-ns
