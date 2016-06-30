@@ -1,4 +1,4 @@
-(defproject autodoc/autodoc-collect "1.1.3-SNAPSHOT"
+(defproject autodoc/autodoc-collect "1.1.3"
   :description "Support library for autodoc"
   :url "http://github.com/tomfaulhaber"
   :license {:name "Eclipse Public License"
