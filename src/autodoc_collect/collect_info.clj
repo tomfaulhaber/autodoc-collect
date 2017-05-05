@@ -44,7 +44,7 @@
   (defn reflect [obj & options]))
 
 (if post-1-8?
-  (require '[clojure.spec :refer [get-spec describe registry]])
+  (require '[clojure.spec.alpha :refer [get-spec describe registry]])
   (do
     (defn get-spec [v])
     (defn describe [spec])
