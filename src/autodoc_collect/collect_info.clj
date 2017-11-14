@@ -218,8 +218,8 @@ nil everywhere else)."
         :doc (str (:doc special-meta)
                   (if (contains? special-meta :url)
                     (when-let [url (:url special-meta)]
-                      (str "\n\nPlease see http://clojure.org/" url))
-                    (str "\n\nPlease see http://clojure.org/special_forms#"
+                      (str "\n\nPlease see https://clojure.org/" url))
+                    (str "\n\nPlease see https://clojure.org/reference/special_forms#"
                          special-name)))
         :forms (:forms special-meta)
         :added "1.0"})
@@ -227,7 +227,7 @@ nil everywhere else)."
        {:name (str special-syntax)
         :var-type "special syntax"
         :doc (str "Syntax for use with " special-name
-                  ".\n\nPlease see http://clojure.org/special_forms#"
+                  ".\n\nPlease see https://clojure.org/reference/special_forms#"
                   special-name)
         :added "1.0"}))))
 
