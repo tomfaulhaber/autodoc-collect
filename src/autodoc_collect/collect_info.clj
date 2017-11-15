@@ -44,7 +44,7 @@
   (defn reflect [obj & options]))
 
 (if post-1-8?
-  (require '[clojure.spec :refer [get-spec describe registry]])
+  (require '[clojure.spec.alpha :refer [get-spec describe registry]])
   (do
     (defn get-spec [v])
     (defn describe [spec])
@@ -123,17 +123,17 @@ return it as a string."
         (protocol? v) "protocol"
         :else "var"))
 
-(defn has-vals
-  "If any of the vals in m are non-nil, return m, else nil"
+(defn component-specs
   [m]
-  (if (seq (disj (set (vals m)) nil))
-    m
-    nil))
+  (merge
+    (when (:args m) {:args m})
+    (when (:ret m) {:ret m})
+    (when (:fn m) {:fn m})))
 
 (defn var-specs
   "Get {:args ..., :ret ..., :fn } spec for v or nil if none"
   [v]
-  (when-let [s (has-vals (get-spec v))]
+  (when-let [s (component-specs (get-spec v))]
     (reduce (fn [m [k v]] (assoc m k (describe v))) {} s)))
 
 (defn vars-for-ns
@@ -218,8 +218,8 @@ nil everywhere else)."
         :doc (str (:doc special-meta)
                   (if (contains? special-meta :url)
                     (when-let [url (:url special-meta)]
-                      (str "\n\nPlease see http://clojure.org/" url))
-                    (str "\n\nPlease see http://clojure.org/special_forms#"
+                      (str "\n\nPlease see https://clojure.org/" url))
+                    (str "\n\nPlease see https://clojure.org/reference/special_forms#"
                          special-name)))
         :forms (:forms special-meta)
         :added "1.0"})
@@ -227,7 +227,7 @@ nil everywhere else)."
        {:name (str special-syntax)
         :var-type "special syntax"
         :doc (str "Syntax for use with " special-name
-                  ".\n\nPlease see http://clojure.org/special_forms#"
+                  ".\n\nPlease see https://clojure.org/reference/special_forms#"
                   special-name)
         :added "1.0"}))))
 
