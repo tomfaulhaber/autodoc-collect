@@ -126,9 +126,9 @@ return it as a string."
 (defn component-specs
   [m]
   (merge
-    (when (:args m) {:args m})
-    (when (:ret m) {:ret m})
-    (when (:fn m) {:fn m})))
+    (when (:args m) {:args (:args m)})
+    (when (:ret m) {:ret (:ret m)})
+    (when (:fn m) {:fn (:fn m)})))
 
 (defn var-specs
   "Get {:args ..., :ret ..., :fn } spec for v or nil if none"
