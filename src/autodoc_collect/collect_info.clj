@@ -239,8 +239,9 @@ nil everywhere else)."
                                 :forms])
          {:name (name (:name (meta v)))
           :doc (remove-leading-whitespace (:doc (meta v))),
-          :var-type (var-type v)
-          :specs (var-specs v)}))
+          :var-type (var-type v)}
+         (when-let [vs (var-specs v)]
+           {:specs vs})))
 
 (defn vars-info
   "Get a seq of var-info for all the vars in a namespace that should be documented."
