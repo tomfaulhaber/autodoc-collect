@@ -418,7 +418,7 @@ have the same prefix followed by a . and then more components"
 (defn add-subspaces [info trim-prefix]
      (assoc info :subspaces
             (filter #(or (:doc %) (seq (:members %))
-                         (seq (:types %)) (seq (:protocols %)))
+                         (seq (:types %)) (seq (:protocols %)) (seq (:specs %)))
                     (build-ns-list (sub-namespaces (:ns info)) trim-prefix))))
 
 (defn add-base-ns-info [ns]
